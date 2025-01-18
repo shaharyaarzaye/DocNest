@@ -1,25 +1,75 @@
 const { Server } = require("socket.io");
+const mongoose = require('mongoose');
+const Document = require('./document')
 
-const io = new Server(3002, {
+
+const connectToDatabase = async () => {
+    try {
+        await mongoose.connect('mongodb://127.0.0.1:27017/DocNest', {
+            useNewUrlParser: true,
+            useUnifiedTopology: true,
+            serverSelectionTimeoutMS: 30000, // 30 seconds timeout
+        });
+        console.log('Connected to MongoDB');
+    } catch (err) {
+        console.error('Failed to connect to MongoDB:', err.message);
+    }
+};
+
+connectToDatabase();
+
+mongoose.connection.on('error', (err) => {
+    console.error('MongoDB connection error:', err.message);
+});
+
+
+const PORT = process.env.PORT || 3002;
+const CLIENT_URL = "https://effective-waffle-46xv5jpg56jf6wp-5173.app.github.dev" || process.env.CLIENT_URL;
+const io = new Server(PORT, {
     cors: {
-        origin: "https://effective-waffle-46xv5jpg56jf6wp-5173.app.github.dev/", // Your client URL
+        origin: CLIENT_URL,
         methods: ["GET", "POST"],
     },
 });
 
+const defaultValue = ""
 
 io.on('connection', (socket) => {
-    console.log('A user connected');
-    
-    socket.on('send-changes', (delta) => {
-      console.log('Received delta:', delta);
-      // Broadcast the changes to other clients (excluding the sender)
-      socket.broadcast.emit('receive-changes', delta);
-    });
-  
-    socket.on('disconnect', () => {
-      console.log('A user disconnected');
-    });
-  });
+    console.log("A user connected with user id : ", socket.id)
+    socket.on('get-document' , async documentId =>{
+        const document = await findOneCreateDocument(documentId)
+        socket.join(documentId)
+        socket.emit('load-document' , document.data)
 
-console.log("Socket.IO server running on port 3002");
+        socket.on('send-changes', (delta) => {
+            socket.broadcast.to(documentId).emit('receive-changes', delta);
+        });
+        socket.on('save-document' , async data => {
+            await Document.findByIdAndUpdate(documentId, {data})
+        })
+    })
+
+   
+
+    socket.on('disconnect', () => {
+      console.log("A user disconnected with user id : ", socket.id)
+    });
+});
+
+// Global error handler
+io.on('error', (err) => {
+    console.error('Socket.IO error:', err);
+});
+
+
+
+
+console.log(`Socket.IO server running on port ${PORT}`);
+
+
+async function findOneCreateDocument (id){
+    if(id == null) return
+    const document = await Document.findById(id)
+    if(document) return document
+    return await Document.create({_id : id , data : defaultValue})
+}
