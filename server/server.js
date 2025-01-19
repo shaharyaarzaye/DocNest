@@ -1,6 +1,6 @@
 const { Server } = require("socket.io");
 const mongoose = require('mongoose');
-const Document = require('./document')
+const Document = require('./document');
 
 
 const connectToDatabase = async () => {
@@ -8,6 +8,7 @@ const connectToDatabase = async () => {
         await mongoose.connect('mongodb://127.0.0.1:27017/DocNest', {
             useNewUrlParser: true,
             useUnifiedTopology: true,
+            useFindAndModify : false,
             serverSelectionTimeoutMS: 30000, // 30 seconds timeout
         });
         console.log('Connected to MongoDB');
@@ -18,13 +19,10 @@ const connectToDatabase = async () => {
 
 connectToDatabase();
 
-mongoose.connection.on('error', (err) => {
-    console.error('MongoDB connection error:', err.message);
-});
 
 
 const PORT = process.env.PORT || 3002;
-const CLIENT_URL = "https://effective-waffle-46xv5jpg56jf6wp-5173.app.github.dev" || process.env.CLIENT_URL;
+const CLIENT_URL = `https://${process.env.CODESPACE_NAME}-${5173}.${process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}`
 const io = new Server(PORT, {
     cors: {
         origin: CLIENT_URL,
